@@ -6,8 +6,9 @@ from itertools import count
 from gym.spaces import Discrete, Box
 import numpy as np
 import re
-import tkinter
 from PIL import ImageDraw, ImageFont
+
+import tkinter
 class Material():
     def __init__(self,position,number=0):  # number means 货量
         self.position=position
@@ -119,7 +120,9 @@ class Transport(GridGame):
         self.opponent=Opponent()
         self.reward=0
         self.reward_per = np.zeros(self.cars) #TODO: TO CHECK
+
         self.root = None
+
 
     # TODO: UPDATE
     @property  # 直接掉一个变量 eg. env.observation_space
@@ -144,7 +147,7 @@ class Transport(GridGame):
 
     def is_terminal(self):
         # print(self.reward_tot)
-        return self.step_cnt > self.max_step or self.reward_tot == 2
+        return self.step_cnt > self.max_step or self.reward_tot == 4
     #
     # def is_a_g_terminal(self):
     #     for i in range(self.materials):
@@ -196,7 +199,7 @@ class Transport(GridGame):
         #         temp = [num1, num2, num3, num4]
         #         break
 
-        temp = [ 8, -8, 0, 0]
+        temp = [ 4, -4, 4, -4]
 
         for i in range(self.materials):
 #             #print ("请输入第%d个物资集散点的坐标：'x,y'"%i)
@@ -237,7 +240,7 @@ class Transport(GridGame):
             # print(self.map[i])#for j in range(self.board_width):
         '''
     def set_cars(self):
-        # random.shuffle(self.free_position)
+        random.shuffle(self.free_position)
 
         for i in range(self.cars):
             pos = self.free_position[0]
@@ -296,7 +299,6 @@ class Transport(GridGame):
         self.reward_per = np.zeros(self.cars)  # TODO: TO CHECK
         self.reward_tot = 0
 
-
         #####################################
         # add: state modified
         # state = []
@@ -320,14 +322,15 @@ class Transport(GridGame):
 
         vehicle_num = len(self.cars_list)
         for n in range(vehicle_num):  # 3 * 2 = 6
-            # pos = self.cars_list[n].position
-            # state_int.append(pos[0])
-            # state_int.append(pos[1])
+            pos = self.cars_list[n].position
+            state_int.append(pos[0])
+            state_int.append(pos[1])
             state_int.append(self.cars_list[n].number)
+
         # for m in range(self.materials):  # 3 * 4 = 12
-        #     # pos = self.material_points[m].position
-        #     # state_int.append(pos[0])
-        #     # state_int.append(pos[1])
+        #     pos = self.material_points[m].position
+        #     state_int.append(pos[0])
+        #     state_int.append(pos[1])
         #     state_int.append(self.material_points[m].number)
 
         return state_int
@@ -451,8 +454,8 @@ class Transport(GridGame):
                         exchange = min(-material_num, vehicle.number)
                         vehicle.number = vehicle.number - exchange
                         material_num = material_num + exchange
-                        self.reward += exchange
-                        self.reward_per += exchange
+                        # self.reward += exchange # old
+                        self.reward_per[i] += exchange
                         material_now.number=material_num
             #     material_now.look()
             # vehicle.look()
@@ -485,9 +488,9 @@ class Transport(GridGame):
 
         vehicle_num = len(self.cars_list)
         for n in range(vehicle_num):  # 3 * 2 = 6
-            # pos = self.cars_list[n].position
-            # state.append(pos[0])
-            # state.append(pos[1])
+            pos = self.cars_list[n].position
+            state_id.append(pos[0])
+            state_id.append(pos[1])
             state_id.append(self.cars_list[n].number)
 
         return state_id
@@ -628,7 +631,9 @@ class Transport(GridGame):
         return info
     def get_reward(self, joint_action):#add
         # reward = [self.reward_per]
-        reward = [np.array([self.reward, self.reward])]
+        # reward = [np.array([self.reward, self.reward])] # old
+
+        reward = np.array([self.reward_per[0], self.reward_per[1] ])
         self.reward = 0
         self.reward_per = np.zeros(self.cars)
 #         # print("score:", self.won)
@@ -645,6 +650,54 @@ class Transport(GridGame):
             return -1
         # print("平局")
         return 0
+
+    def _close_view(self):
+        if self.root:
+            self.root.destory()
+            self.root = None
+            self.canvas = None
+        # self.done = True
+
+    def _render(self):
+        map = np.array(self.map)
+        scale = 30
+        width = map.shape[0] * scale
+        height = map.shape[1] * scale
+        if self.root is None:
+            self.root = tkinter.Tk()
+            self.root.title("escalator env")
+            self.root.protocol("WM_DELETE_WINDOW", self._close_view)
+            self.canvas = tkinter.Canvas(self.root, width=width, height=height)
+            self.canvas.pack()
+
+        self.canvas.delete(tkinter.ALL)
+        self.canvas.create_rectangle(0, 0, width, height, fill="black")
+
+        def fill_cell(x, y, color):
+            self.canvas.create_rectangle(
+                x * scale,
+                y * scale,
+                (x + 1) * scale,
+                (y + 1) * scale,
+                fill=color
+            )
+
+        for x in range(map.shape[0]):
+            for y in range(map.shape[1]):
+                if map[x,y] == 1:
+                    fill_cell(x,y,'Grey')
+                if map[x,y] == 2:
+                    fill_cell(x,y,'Green')
+                if map[x,y] == 3:
+                    fill_cell(x,y,'Red')
+                if map[x,y] == 4:
+                    if self.cars_list[0].number == 0:
+                        fill_cell(x,y,'Blue')
+                    else:
+                        fill_cell(x, y, 'Pink')
+
+        self.root.update()
+
     @staticmethod
     def _render_board(state, board, colors, unit, fix, extra_info):##add
         # print("1111111111111111111111111")
@@ -721,52 +774,6 @@ class Transport(GridGame):
         self.game_tape.append(im_data)
         return im_data
 
-    def _close_view(self):
-        if self.root:
-            self.root.destory()
-            self.root = None
-            self.canvas = None
-        # self.done = True
-
-    def _render(self):
-        map = np.array(self.map)
-        scale = 30
-        width = map.shape[0] * scale
-        height = map.shape[1] * scale
-        if self.root is None:
-            self.root = tkinter.Tk()
-            self.root.title("escalator env")
-            self.root.protocol("WM_DELETE_WINDOW", self._close_view)
-            self.canvas = tkinter.Canvas(self.root, width=width, height=height)
-            self.canvas.pack()
-
-        self.canvas.delete(tkinter.ALL)
-        self.canvas.create_rectangle(0, 0, width, height, fill="black")
-
-        def fill_cell(x, y, color):
-            self.canvas.create_rectangle(
-                x * scale,
-                y * scale,
-                (x + 1) * scale,
-                (y + 1) * scale,
-                fill=color
-            )
-
-        for x in range(map.shape[0]):
-            for y in range(map.shape[1]):
-                if map[x,y] == 1:
-                    fill_cell(x,y,'Grey')
-                if map[x,y] == 2:
-                    fill_cell(x,y,'Green')
-                if map[x,y] == 3:
-                    fill_cell(x,y,'Red')
-                if map[x,y] == 4:
-                    if self.cars_list[0].number == 0:
-                        fill_cell(x,y,'Blue')
-                    else:
-                        fill_cell(x, y, 'Pink')
-
-        self.root.update()
 
 def render_game(g, fps=1):
     import pygame
